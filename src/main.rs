@@ -62,29 +62,27 @@ fn benchmark_count(start: Instant, count: Arc<Mutex<i32>>) {
 }
 
 fn main_loop(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>) {
-  let (mnemonic, address) = generate_address();
-  let score = calc_score(&address);
+  loop {
+    let (mnemonic, address) = generate_address();
+    let score = calc_score(&address);
 
-  if BENCHMARK == true {
-    *count.lock().unwrap() += 1;
+    if BENCHMARK == true {
+      *count.lock().unwrap() += 1;
+    }
+
+    if *last_score.lock().unwrap() < score && score > MIN_SCORE {
+      println!("\n");
+
+      let duration = start.elapsed();
+      println!("Time: {:?}", duration);
+
+      println!("BIP39: {}", mnemonic);
+      println!("Address: 0x{}", address);
+      println!("Score: {}", score);
+
+      *last_score.lock().unwrap() = score;
+    }
   }
-
-  let val = *last_score.lock().unwrap();
-
-  if val < score && score > MIN_SCORE {
-    println!("\n");
-
-    let duration = start.elapsed();
-    println!("Time: {:?}", duration);
-
-    println!("BIP39: {}", mnemonic);
-    println!("Address: 0x{}", address);
-    println!("Score: {}", score);
-
-    *last_score.lock().unwrap() = score;
-  }
-
-  main_loop(start, last_score, count);
 }
 
 fn calc_score(address: &String) -> i32 {
@@ -106,7 +104,7 @@ fn calc_score(address: &String) -> i32 {
     }
   }
 
-  score
+  return score;
 }
 
 fn generate_address() -> (Mnemonic, String) {
@@ -137,7 +135,9 @@ where
 {
   let mut hasher = Keccak256::new();
   hasher.update(data);
+
   let result = hasher.finalize();
   let hex_r = hex::encode(result);
-  hex_r
+
+  return hex_r;
 }
