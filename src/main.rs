@@ -1,22 +1,23 @@
-extern crate secp256k1;
 extern crate num_cpus;
+extern crate secp256k1;
 
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Instant};
-use std::sync::{Arc,Mutex};
+use std::time::Instant;
 
+use hex;
+use std::str::FromStr;
 use tiny_hderive::bip32::ExtendedPrivKey;
 use tiny_hderive::bip44::ChildNumber;
-use std::str::FromStr;
-use hex;
 
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
 
-use serde::{Serialize};
+use secp256k1::key::{PublicKey, SecretKey};
+use serde::Serialize;
 use sha3::{Digest, Keccak256};
-use secp256k1::key::{SecretKey, PublicKey};
 
 const BENCHMARK: bool = false;
+const MIN_SCORE: i32 = 300;
 
 fn main() {
   let threads: usize = num_cpus::get();
@@ -60,7 +61,6 @@ fn benchmark_count(start: Instant, count: Arc<Mutex<i32>>) {
   benchmark_count(start, count);
 }
 
-
 fn main_loop(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>) {
   let (mnemonic, address) = generate_address();
   let score = calc_score(&address);
@@ -71,7 +71,7 @@ fn main_loop(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>
 
   let val = *last_score.lock().unwrap();
 
-  if val < score {
+  if val < score && score > MIN_SCORE {
     println!("\n");
 
     let duration = start.elapsed();
@@ -80,7 +80,6 @@ fn main_loop(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>
     println!("BIP39: {}", mnemonic);
     println!("Address: 0x{}", address);
     println!("Score: {}", score);
-
 
     *last_score.lock().unwrap() = score;
   }
@@ -132,10 +131,13 @@ fn generate_address() -> (Mnemonic, String) {
   return (mnemonic, addr.to_string());
 }
 
-fn keccak_hash<T>(data: &T) -> String where T: ?Sized + Serialize + AsRef<[u8]>, {
-    let mut hasher = Keccak256::new();
-    hasher.update(data);
-    let result = hasher.finalize();
-    let hex_r = hex::encode(result);
-    hex_r
+fn keccak_hash<T>(data: &T) -> String
+where
+  T: ?Sized + Serialize + AsRef<[u8]>,
+{
+  let mut hasher = Keccak256::new();
+  hasher.update(data);
+  let result = hasher.finalize();
+  let hex_r = hex::encode(result);
+  hex_r
 }
