@@ -16,6 +16,7 @@ use serde::{Serialize};
 use sha3::{Digest, Keccak256};
 use secp256k1::key::{SecretKey, PublicKey};
 
+const BENCHMARK: bool = false;
 
 fn main() {
   let threads: usize = num_cpus::get();
@@ -37,32 +38,36 @@ fn main() {
     }))
   }
 
-  // let start = Instant::now();
-  // benchmark_count(start, count);
+  if BENCHMARK == true {
+    let start = Instant::now();
+    benchmark_count(start, count);
+  }
 
   for handle in handles {
     handle.join().unwrap();
   }
 }
 
-// fn benchmark_count(start: Instant, count: Arc<Mutex<i32>>) {
-//   let elapsed = start.elapsed();
-//   let count_per_sec = *count.lock().unwrap() as f64 / elapsed.as_secs_f64();
+fn benchmark_count(start: Instant, count: Arc<Mutex<i32>>) {
+  let elapsed = start.elapsed();
+  let count_per_sec = *count.lock().unwrap() as f64 / elapsed.as_secs_f64();
 
-//   if count_per_sec > 0.0 {
-//     println!("{} addresses generated per second", count_per_sec);
-//   }
+  if count_per_sec > 0.0 {
+    println!("{} addresses generated per second", count_per_sec);
+  }
 
-//   thread::sleep(std::time::Duration::from_secs(10));
-//   benchmark_count(start, count);
-// }
+  thread::sleep(std::time::Duration::from_secs(10));
+  benchmark_count(start, count);
+}
 
 
 fn main_loop(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>) {
   let (mnemonic, address) = generate_address();
   let score = calc_score(&address);
 
-  *count.lock().unwrap() += 1;
+  if BENCHMARK == true {
+    *count.lock().unwrap() += 1;
+  }
 
   let val = *last_score.lock().unwrap();
 
