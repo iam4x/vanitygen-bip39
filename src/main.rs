@@ -36,7 +36,7 @@ fn main() {
     handles.push(thread::spawn(move || {
       let start = Instant::now();
       main_loop(start, last_score, count);
-    }))
+    }));
   }
 
   if BENCHMARK == true {
