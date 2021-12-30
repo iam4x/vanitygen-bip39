@@ -1,22 +1,21 @@
 extern crate num_cpus;
 extern crate secp256k1;
 
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 
 use hex;
-use std::str::FromStr;
-use tiny_hderive::bip32::ExtendedPrivKey;
-use tiny_hderive::bip44::ChildNumber;
 
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
-
 use secp256k1::key::{PublicKey, SecretKey};
 use serde::Serialize;
 use sha3::{Digest, Keccak256};
+use tiny_hderive::bip32::ExtendedPrivKey;
+use tiny_hderive::bip44::ChildNumber;
 
-const BENCHMARK: bool = false;
+const BENCHMARK: bool = true;
 const MIN_SCORE: i32 = 300;
 
 fn main() {
@@ -35,13 +34,12 @@ fn main() {
 
     handles.push(thread::spawn(move || {
       let start = Instant::now();
-      main_loop(start, last_score, count);
+      find_vanity_address(start, last_score, count);
     }));
   }
 
   if BENCHMARK == true {
-    let start = Instant::now();
-    benchmark_count(start, count);
+    benchmark_count(count);
   }
 
   for handle in handles {
@@ -49,19 +47,20 @@ fn main() {
   }
 }
 
-fn benchmark_count(start: Instant, count: Arc<Mutex<i32>>) {
-  let elapsed = start.elapsed();
-  let count_per_sec = *count.lock().unwrap() as f64 / elapsed.as_secs_f64();
+fn benchmark_count(count: Arc<Mutex<i32>>) {
+  *count.lock().unwrap() = 0;
+  thread::sleep(std::time::Duration::from_secs(10));
 
-  if count_per_sec > 0.0 {
+  let count_per_sec = *count.lock().unwrap() / 10;
+
+  if count_per_sec > 0 {
     println!("{} addresses generated per second", count_per_sec);
   }
 
-  thread::sleep(std::time::Duration::from_secs(10));
-  benchmark_count(start, count);
+  benchmark_count(count);
 }
 
-fn main_loop(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>) {
+fn find_vanity_address(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>) {
   loop {
     let (mnemonic, address) = generate_address();
     let score = calc_score(&address);
@@ -70,7 +69,7 @@ fn main_loop(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>
       *count.lock().unwrap() += 1;
     }
 
-    if *last_score.lock().unwrap() < score && score > MIN_SCORE {
+    if score > *last_score.lock().unwrap() && score > MIN_SCORE {
       println!("\n");
 
       let duration = start.elapsed();
