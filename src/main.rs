@@ -19,10 +19,18 @@ const BENCHMARK: bool = true;
 const MIN_SCORE: i32 = 300;
 
 fn main() {
-  let mut threads: usize = num_cpus::get();
-  threads = if threads > 1 { threads - 1 } else { 1 };
+  let threads: usize = num_cpus::get();
 
-  println!("Starting vanitygen-bip39-rust on {} threads", threads);
+  println!("\n");
+  println!("                     .__  __                                       ___.   .__      ________  ________ ");
+  println!("___  _______    ____ |__|/  |_ ___.__. ____   ____   ____          \\_ |__ |__|_____\\_____  \\/   __   \\");
+  println!("\\  \\/ /\\__  \\  /    \\|  \\   __<   |  |/ ___\\_/ __ \\ /    \\   ______ | __ \\|  \\____ \\ _(__  <\\____    /");
+  println!(" \\   /  / __ \\|   |  \\  ||  |  \\___  / /_/  >  ___/|   |  \\ /_____/ | \\_\\ \\  |  |_> >       \\  /    / ");
+  println!("  \\_/  (____  /___|  /__||__|  / ____\\___  / \\___  >___|  /         |___  /__|   __/______  / /____/  ");
+  println!("            \\/     \\/          \\/   /_____/      \\/     \\/              \\/   |__|         \\/          ");
+  println!("\n");
+
+  println!("Running on {} threads", threads);
 
   let last_score = Arc::new(Mutex::new(0));
   let count = Arc::new(Mutex::new(0));
