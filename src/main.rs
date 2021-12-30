@@ -3,7 +3,6 @@ extern crate secp256k1;
 
 use clap::Parser;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 
@@ -19,27 +18,18 @@ use tiny_hderive::bip44::ChildNumber;
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 struct Args {
-  #[clap(short, long)]
-  benchmark: bool,
-
   #[clap(short, long, default_value_t = 400)]
   score: i32,
 
   #[clap(short, long, default_value_t = 12)]
   words: i32,
 
-  #[clap(short, long, default_value_t = 0)]
+  #[clap(short, long, default_value_t = num_cpus::get())]
   threads: usize,
 }
 
 fn main() {
   let args = Args::parse();
-
-  let threads: usize = if args.threads > 0 {
-    args.threads
-  } else {
-    num_cpus::get()
-  };
 
   println!("\n");
   println!("                       .__  __                                       ___.   .__      ________  ________              ");
@@ -50,36 +40,17 @@ fn main() {
   println!("              \\/     \\/          \\/   /_____/      \\/     \\/              \\/   |__|         \\/                ");
   println!("\n");
 
-  println!("Threads count: {}", threads);
+  println!("Threads count: {}", args.threads);
   println!("Mnemonic words count: {}", args.words);
   println!("Minimum score shown: {}", args.score);
   println!("\n");
 
-  let min_score = Arc::new(Mutex::new(args.score));
-  let words = Arc::new(Mutex::new(args.words));
-  let benchmark = Arc::new(Mutex::new(args.benchmark));
-
-  let last_score = Arc::new(Mutex::new(0));
-  let count = Arc::new(Mutex::new(0));
-
   let mut handles = vec![];
 
-  for _i in 0..threads {
-    let min_score = Arc::clone(&min_score);
-    let words = Arc::clone(&words);
-    let benchmark = Arc::clone(&benchmark);
-
-    let last_score = Arc::clone(&last_score);
-    let count = Arc::clone(&count);
-
+  for _i in 0..args.threads {
     handles.push(thread::spawn(move || {
-      let start = Instant::now();
-      find_vanity_address(start, last_score, count, min_score, words, benchmark);
+      find_vanity_address();
     }));
-  }
-
-  if args.benchmark == true {
-    benchmark_count(count);
   }
 
   for handle in handles {
@@ -87,38 +58,16 @@ fn main() {
   }
 }
 
-fn benchmark_count(count: Arc<Mutex<i32>>) {
-  let mut start = Instant::now();
-
-  loop {
-    let count_value = *count.lock().unwrap();
-
-    if count_value > 100000 {
-      println!("{} OP/s", count_value / (start.elapsed().as_secs() as i32));
-
-      *count.lock().unwrap() = 0;
-      start = Instant::now();
-    }
-  }
-}
-
 fn find_vanity_address(
-  start: Instant,
-  last_score: Arc<Mutex<i32>>,
-  count: Arc<Mutex<i32>>,
-  min_score: Arc<Mutex<i32>>,
-  words: Arc<Mutex<i32>>,
-  benchmark: Arc<Mutex<bool>>,
 ) {
+  let args = Args::parse();
+  let start = Instant::now();
+
   loop {
-    let (mnemonic, address) = generate_address(*words.lock().unwrap());
+    let (mnemonic, address) = generate_address(args.words);
     let score = calc_score(&address);
 
-    if *benchmark.lock().unwrap() == true {
-      *count.lock().unwrap() += 1;
-    }
-
-    if score > *min_score.lock().unwrap() {
+    if score > args.score {
       let duration = start.elapsed();
 
       println!("\n");
@@ -127,8 +76,6 @@ fn find_vanity_address(
       println!("Address: 0x{}", address);
       println!("Score: {}", score);
       println!("\n");
-
-      *last_score.lock().unwrap() = score;
     }
   }
 }
