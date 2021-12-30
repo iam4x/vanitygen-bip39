@@ -15,8 +15,8 @@ use sha3::{Digest, Keccak256};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use tiny_hderive::bip44::ChildNumber;
 
-const BENCHMARK: bool = false;
-const MIN_SCORE: i32 = 500;
+const BENCHMARK: bool = true;
+const MIN_SCORE: i32 = 300;
 const WORDS: i32 = 12;
 
 fn main() {
@@ -66,7 +66,7 @@ fn benchmark_count(count: Arc<Mutex<i32>>) {
   loop {
     let count_value = *count.lock().unwrap();
 
-    if count_value > 100000 {
+    if count_value > 1000 {
       println!("{} OP/s", count_value / (start.elapsed().as_secs() as i32));
 
       *count.lock().unwrap() = 0;
