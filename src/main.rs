@@ -54,7 +54,7 @@ fn benchmark_count(count: Arc<Mutex<i32>>) {
   loop {
     let count_value = *count.lock().unwrap();
 
-    if count_value > 10000 {
+    if count_value > 100000 {
       println!("{} OP/s", count_value / (start.elapsed().as_secs() as i32));
 
       *count.lock().unwrap() = 0;
