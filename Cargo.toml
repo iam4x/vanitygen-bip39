@@ -1,5 +1,6 @@
 [package]
-name = "vanitygen-bip39-rust"
+name = "vanitygen-bip39"
+author = "iam4x.eth"
 version = "0.1.0"
 edition = "2021"
 

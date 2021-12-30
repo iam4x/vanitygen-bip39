@@ -15,22 +15,26 @@ use sha3::{Digest, Keccak256};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use tiny_hderive::bip44::ChildNumber;
 
-const BENCHMARK: bool = true;
-const MIN_SCORE: i32 = 300;
+const BENCHMARK: bool = false;
+const MIN_SCORE: i32 = 500;
+const WORDS: i32 = 12;
 
 fn main() {
   let threads: usize = num_cpus::get();
 
   println!("\n");
-  println!("                     .__  __                                       ___.   .__      ________  ________ ");
-  println!("___  _______    ____ |__|/  |_ ___.__. ____   ____   ____          \\_ |__ |__|_____\\_____  \\/   __   \\");
-  println!("\\  \\/ /\\__  \\  /    \\|  \\   __<   |  |/ ___\\_/ __ \\ /    \\   ______ | __ \\|  \\____ \\ _(__  <\\____    /");
-  println!(" \\   /  / __ \\|   |  \\  ||  |  \\___  / /_/  >  ___/|   |  \\ /_____/ | \\_\\ \\  |  |_> >       \\  /    / ");
-  println!("  \\_/  (____  /___|  /__||__|  / ____\\___  / \\___  >___|  /         |___  /__|   __/______  / /____/  ");
-  println!("            \\/     \\/          \\/   /_____/      \\/     \\/              \\/   |__|         \\/          ");
+  println!("                       .__  __                                       ___.   .__      ________  ________              ");
+  println!("  ___  _______    ____ |__|/  |_ ___.__. ____   ____   ____          \\_ |__ |__|_____\\_____  \\/   __   \\         ");
+  println!("  \\  \\/ /\\__  \\  /    \\|  \\   __<   |  |/ ___\\_/ __ \\ /    \\   ______ | __ \\|  \\____ \\ _(__  <\\____    /");
+  println!("   \\   /  / __ \\|   |  \\  ||  |  \\___  / /_/  >  ___/|   |  \\ /_____/ | \\_\\ \\  |  |_> >       \\  /    /     ");
+  println!("    \\_/  (____  /___|  /__||__|  / ____\\___  / \\___  >___|  /         |___  /__|   __/______  / /____/            ");
+  println!("              \\/     \\/          \\/   /_____/      \\/     \\/              \\/   |__|         \\/                ");
   println!("\n");
 
-  println!("Running on {} threads", threads);
+  println!("Threads count: {}", threads);
+  println!("Mnemonic words count: {}", WORDS);
+  println!("Minimum score shown: {}", MIN_SCORE);
+  println!("\n");
 
   let last_score = Arc::new(Mutex::new(0));
   let count = Arc::new(Mutex::new(0));
@@ -80,7 +84,7 @@ fn find_vanity_address(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<M
       *count.lock().unwrap() += 1;
     }
 
-    if score > *last_score.lock().unwrap() && score > MIN_SCORE {
+    if score > MIN_SCORE {
       let duration = start.elapsed();
 
       println!("\n");
@@ -118,7 +122,12 @@ fn calc_score(address: &String) -> i32 {
 }
 
 fn generate_address() -> (Mnemonic, String) {
-  let mnemonic = Mnemonic::new(MnemonicType::Words24, Language::English);
+  let mut words = MnemonicType::Words12;
+  if WORDS == 24 {
+    words = MnemonicType::Words24;
+  }
+
+  let mnemonic = Mnemonic::new(words, Language::English);
 
   let seed = Seed::new(&mnemonic, ""); // 128 hex chars = 512 bits
   let seed_bytes: &[u8] = seed.as_bytes();
