@@ -15,11 +15,12 @@ use sha3::{Digest, Keccak256};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use tiny_hderive::bip44::ChildNumber;
 
-const BENCHMARK: bool = false;
+const BENCHMARK: bool = true;
 const MIN_SCORE: i32 = 300;
 
 fn main() {
-  let threads: usize = num_cpus::get();
+  let mut threads: usize = num_cpus::get();
+  threads = if threads > 1 { threads - 1 } else { 1 };
 
   println!("Starting vanitygen-bip39-rust on {} threads", threads);
 
@@ -48,16 +49,18 @@ fn main() {
 }
 
 fn benchmark_count(count: Arc<Mutex<i32>>) {
-  *count.lock().unwrap() = 0;
-  thread::sleep(std::time::Duration::from_secs(30));
+  let mut start = Instant::now();
 
-  let count_per_sec = *count.lock().unwrap() / 30;
+  loop {
+    let count_value = *count.lock().unwrap();
 
-  if count_per_sec > 0 {
-    println!("{} OP/s", count_per_sec);
+    if count_value > 10000 {
+      println!("{} OP/s", count_value / (start.elapsed().as_secs() as i32));
+
+      *count.lock().unwrap() = 0;
+      start = Instant::now();
+    }
   }
-
-  benchmark_count(count);
 }
 
 fn find_vanity_address(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>) {
