@@ -1,6 +1,7 @@
 extern crate num_cpus;
 extern crate secp256k1;
 
+use clap::Parser;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -15,12 +16,30 @@ use sha3::{Digest, Keccak256};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use tiny_hderive::bip44::ChildNumber;
 
-const BENCHMARK: bool = false;
-const MIN_SCORE: i32 = 500;
-const WORDS: i32 = 12;
+#[derive(Parser, Debug)]
+#[clap(about, version, author)]
+struct Args {
+  #[clap(short, long)]
+  benchmark: bool,
+
+  #[clap(short, long, default_value_t = 400)]
+  score: i32,
+
+  #[clap(short, long, default_value_t = 12)]
+  words: i32,
+
+  #[clap(short, long, default_value_t = 0)]
+  threads: usize,
+}
 
 fn main() {
-  let threads: usize = num_cpus::get();
+  let args = Args::parse();
+
+  let threads: usize = if args.threads > 0 {
+    args.threads
+  } else {
+    num_cpus::get()
+  };
 
   println!("\n");
   println!("                       .__  __                                       ___.   .__      ________  ________              ");
@@ -32,9 +51,13 @@ fn main() {
   println!("\n");
 
   println!("Threads count: {}", threads);
-  println!("Mnemonic words count: {}", WORDS);
-  println!("Minimum score shown: {}", MIN_SCORE);
+  println!("Mnemonic words count: {}", args.words);
+  println!("Minimum score shown: {}", args.score);
   println!("\n");
+
+  let min_score = Arc::new(Mutex::new(args.score));
+  let words = Arc::new(Mutex::new(args.words));
+  let benchmark = Arc::new(Mutex::new(args.benchmark));
 
   let last_score = Arc::new(Mutex::new(0));
   let count = Arc::new(Mutex::new(0));
@@ -42,16 +65,20 @@ fn main() {
   let mut handles = vec![];
 
   for _i in 0..threads {
+    let min_score = Arc::clone(&min_score);
+    let words = Arc::clone(&words);
+    let benchmark = Arc::clone(&benchmark);
+
     let last_score = Arc::clone(&last_score);
     let count = Arc::clone(&count);
 
     handles.push(thread::spawn(move || {
       let start = Instant::now();
-      find_vanity_address(start, last_score, count);
+      find_vanity_address(start, last_score, count, min_score, words, benchmark);
     }));
   }
 
-  if BENCHMARK == true {
+  if args.benchmark == true {
     benchmark_count(count);
   }
 
@@ -75,16 +102,23 @@ fn benchmark_count(count: Arc<Mutex<i32>>) {
   }
 }
 
-fn find_vanity_address(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<Mutex<i32>>) {
+fn find_vanity_address(
+  start: Instant,
+  last_score: Arc<Mutex<i32>>,
+  count: Arc<Mutex<i32>>,
+  min_score: Arc<Mutex<i32>>,
+  words: Arc<Mutex<i32>>,
+  benchmark: Arc<Mutex<bool>>,
+) {
   loop {
-    let (mnemonic, address) = generate_address();
+    let (mnemonic, address) = generate_address(*words.lock().unwrap());
     let score = calc_score(&address);
 
-    if BENCHMARK == true {
+    if *benchmark.lock().unwrap() == true {
       *count.lock().unwrap() += 1;
     }
 
-    if score > MIN_SCORE {
+    if score > *min_score.lock().unwrap() {
       let duration = start.elapsed();
 
       println!("\n");
@@ -121,13 +155,14 @@ fn calc_score(address: &String) -> i32 {
   return score;
 }
 
-fn generate_address() -> (Mnemonic, String) {
-  let mut words = MnemonicType::Words12;
-  if WORDS == 24 {
-    words = MnemonicType::Words24;
+fn generate_address(words: i32) -> (Mnemonic, String) {
+  let mut w = MnemonicType::Words12;
+
+  if words == 24 {
+    w = MnemonicType::Words24;
   }
 
-  let mnemonic = Mnemonic::new(words, Language::English);
+  let mnemonic = Mnemonic::new(w, Language::English);
 
   let seed = Seed::new(&mnemonic, ""); // 128 hex chars = 512 bits
   let seed_bytes: &[u8] = seed.as_bytes();
