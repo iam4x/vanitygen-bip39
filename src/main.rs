@@ -15,7 +15,7 @@ use sha3::{Digest, Keccak256};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use tiny_hderive::bip44::ChildNumber;
 
-const BENCHMARK: bool = true;
+const BENCHMARK: bool = false;
 const MIN_SCORE: i32 = 300;
 
 fn main() {
@@ -49,12 +49,12 @@ fn main() {
 
 fn benchmark_count(count: Arc<Mutex<i32>>) {
   *count.lock().unwrap() = 0;
-  thread::sleep(std::time::Duration::from_secs(10));
+  thread::sleep(std::time::Duration::from_secs(30));
 
-  let count_per_sec = *count.lock().unwrap() / 10;
+  let count_per_sec = *count.lock().unwrap() / 30;
 
   if count_per_sec > 0 {
-    println!("{} addresses generated per second", count_per_sec);
+    println!("{} OP/s", count_per_sec);
   }
 
   benchmark_count(count);
@@ -70,14 +70,14 @@ fn find_vanity_address(start: Instant, last_score: Arc<Mutex<i32>>, count: Arc<M
     }
 
     if score > *last_score.lock().unwrap() && score > MIN_SCORE {
-      println!("\n");
-
       let duration = start.elapsed();
-      println!("Time: {:?}", duration);
 
+      println!("\n");
+      println!("Time: {:?}", duration);
       println!("BIP39: {}", mnemonic);
       println!("Address: 0x{}", address);
       println!("Score: {}", score);
+      println!("\n");
 
       *last_score.lock().unwrap() = score;
     }
