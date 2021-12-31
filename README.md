@@ -1,10 +1,10 @@
 # vanitygen-bip39
 
+<img width="747" alt="image" src="https://user-images.githubusercontent.com/893837/147824324-9d8891a9-87d2-44f6-aee5-a42a6e5e78c2.png">
+
 > Generate Ethereum gas efficient addresses with leading zeros
 >
 > https://medium.com/coinmonks/on-efficient-ethereum-addresses-3fef0596e263
-
-<img width="747" alt="image" src="https://user-images.githubusercontent.com/893837/147824324-9d8891a9-87d2-44f6-aee5-a42a6e5e78c2.png">
 
 ## Requirements
 
