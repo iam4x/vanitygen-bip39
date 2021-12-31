@@ -45,8 +45,16 @@ fn main() {
   println!("\n");
 
   println!("Threads count: {}", args.threads);
-  println!("Mnemonic words count: {}", args.words);
   println!("Minimum score shown: {}", args.score);
+
+  if args.words > 0 {
+    println!("Mnemonic words count: {}", args.words);
+  }
+
+  if args.webhook != "" {
+    println!("Webhook: {}", args.webhook);
+  }
+
   println!("\n");
 
   let mut handles = vec![];
