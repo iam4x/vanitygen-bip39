@@ -1,8 +1,8 @@
 extern crate num_cpus;
 extern crate secp256k1;
 
-use std::collections::HashMap;
 use clap::Parser;
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::thread;
 use std::time::Instant;
@@ -22,7 +22,7 @@ struct Args {
   #[clap(short, long, default_value_t = 400)]
   score: i32,
 
-  #[clap(short, long, default_value_t = 12)]
+  #[clap(short, long, default_value_t = 0)]
   words: i32,
 
   #[clap(short, long, default_value_t = num_cpus::get())]
@@ -51,9 +51,9 @@ fn main() {
 
   let mut handles = vec![];
 
-  for _i in 0..args.threads {
+  for i in 0..args.threads {
     handles.push(thread::spawn(move || {
-      find_vanity_address();
+      find_vanity_address(i);
     }));
   }
 
@@ -62,13 +62,22 @@ fn main() {
   }
 }
 
-fn find_vanity_address(
-) {
+fn find_vanity_address(thread: usize) {
   let args = Args::parse();
   let start = Instant::now();
 
-  let mut words = MnemonicType::Words12;
-  if args.words == 24 {
+  // default words to 12 and 24 depends on thread
+  // allow to search in different bip39 ranges for each thread
+  let mut words = if thread % 2 == 1 {
+    MnemonicType::Words12
+  } else {
+    MnemonicType::Words24
+  };
+
+  // respect user input if specified words count in args
+  if args.words == 12 {
+    words = MnemonicType::Words12;
+  } else if args.words == 24 {
     words = MnemonicType::Words24;
   }
 
@@ -95,9 +104,7 @@ fn find_vanity_address(
         map.insert("score", score.to_string());
 
         let client = reqwest::blocking::Client::new();
-        let _res = client.post(&args.webhook)
-          .json(&map)
-          .send();
+        let _res = client.post(&args.webhook).json(&map).send();
       }
     }
   }
