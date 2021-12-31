@@ -1,6 +1,7 @@
 extern crate num_cpus;
 extern crate secp256k1;
 
+use std::collections::HashMap;
 use clap::Parser;
 use std::str::FromStr;
 use std::thread;
@@ -26,6 +27,9 @@ struct Args {
 
   #[clap(short, long, default_value_t = num_cpus::get())]
   threads: usize,
+
+  #[clap(short = 'W', long, default_value = "")]
+  webhook: String,
 }
 
 fn main() {
@@ -69,6 +73,19 @@ fn find_vanity_address(
 
     if score > args.score {
       let duration = start.elapsed();
+
+      if args.webhook != "" {
+        let mut map = HashMap::new();
+        map.insert("duration", duration.as_secs().to_string());
+        map.insert("mnemonic", mnemonic.phrase().to_string());
+        map.insert("address", address.to_string());
+        map.insert("score", score.to_string());
+
+        let client = reqwest::blocking::Client::new();
+        let _res = client.post(&args.webhook)
+          .json(&map)
+          .send();
+      }
 
       println!("\n");
       println!("Time: {:?}", duration);

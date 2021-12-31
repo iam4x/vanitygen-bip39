@@ -1,16 +1,16 @@
 [package]
 name = "vanitygen-bip39"
-author = "iam4x.eth"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-num_cpus = "1.13.1"
+clap = { version = "3.0.0-rc.10", features = ["derive"] }
 hex = "*"
+num_cpus = "1.13.1"
+reqwest = { version = "0.11.8", features = ["blocking", "json"] }
 secp256k1 = "0.20.3"
 serde = { version="1.0.126", features=["derive"] }
 sha3 = "0.10.0"
 state = { version = "0.5", features = ["tls"] }
 tiny-bip39 = "0.8.0"
 tiny-hderive = "0.3.0"
-clap = { version = "3.0.0-rc.10", features = ["derive"] }
