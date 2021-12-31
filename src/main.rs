@@ -67,13 +67,26 @@ fn find_vanity_address(
   let args = Args::parse();
   let start = Instant::now();
 
+  let mut words = MnemonicType::Words12;
+  if args.words == 24 {
+    words = MnemonicType::Words24;
+  }
+
   loop {
-    let (mnemonic, address) = generate_address(args.words);
+    let (mnemonic, address) = generate_address(words);
     let score = calc_score(&address);
 
     if score > args.score {
+      // Print the result
       let duration = start.elapsed();
+      println!("\n");
+      println!("Time: {:?}", duration);
+      println!("BIP39: {}", mnemonic);
+      println!("Address: 0x{}", address);
+      println!("Score: {}", score);
+      println!("\n");
 
+      // Send to webhook
       if args.webhook != "" {
         let mut map = HashMap::new();
         map.insert("duration", duration.as_secs().to_string());
@@ -86,13 +99,6 @@ fn find_vanity_address(
           .json(&map)
           .send();
       }
-
-      println!("\n");
-      println!("Time: {:?}", duration);
-      println!("BIP39: {}", mnemonic);
-      println!("Address: 0x{}", address);
-      println!("Score: {}", score);
-      println!("\n");
     }
   }
 }
@@ -119,14 +125,8 @@ fn calc_score(address: &String) -> i32 {
   return score;
 }
 
-fn generate_address(words: i32) -> (Mnemonic, String) {
-  let mut w = MnemonicType::Words12;
-
-  if words == 24 {
-    w = MnemonicType::Words24;
-  }
-
-  let mnemonic = Mnemonic::new(w, Language::English);
+fn generate_address(words: MnemonicType) -> (Mnemonic, String) {
+  let mnemonic = Mnemonic::new(words, Language::English);
 
   let seed = Seed::new(&mnemonic, ""); // 128 hex chars = 512 bits
   let seed_bytes: &[u8] = seed.as_bytes();
