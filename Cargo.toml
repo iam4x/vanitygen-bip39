@@ -8,9 +8,7 @@ clap = { version = "3.0.0-rc.10", features = ["derive"] }
 hex = "*"
 num_cpus = "1.13.1"
 reqwest = { version = "0.11.8", features = ["blocking", "json"] }
-secp256k1 = "0.20.3"
-serde = { version="1.0.126", features=["derive"] }
-sha3 = "0.10.0"
-state = { version = "0.5", features = ["tls"] }
-tiny-bip39 = "0.8.0"
+libsecp256k1 = "0.7.0"
+bip0039 = "0.10.1"
 tiny-hderive = "0.3.0"
+tiny-keccak = { version = "2.0.2", features = ['keccak'] }

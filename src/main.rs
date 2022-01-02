@@ -1,5 +1,4 @@
 extern crate num_cpus;
-extern crate secp256k1;
 
 use clap::Parser;
 use std::collections::HashMap;
@@ -7,14 +6,11 @@ use std::str::FromStr;
 use std::thread;
 use std::time::Instant;
 
-use hex;
-
-use bip39::{Language, Mnemonic, MnemonicType, Seed};
-use secp256k1::key::{PublicKey, SecretKey};
-use serde::Serialize;
-use sha3::{Digest, Keccak256};
+use bip0039::{Count, Mnemonic};
+use libsecp256k1::{PublicKey, SecretKey};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use tiny_hderive::bip44::ChildNumber;
+use tiny_keccak::{Hasher, Keccak};
 
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
@@ -77,16 +73,16 @@ fn find_vanity_address(thread: usize) {
   // default words to 12 and 24 depends on thread
   // allow to search in different bip39 ranges for each thread
   let mut words = if thread % 2 == 1 {
-    MnemonicType::Words12
+    Count::Words12
   } else {
-    MnemonicType::Words24
+    Count::Words24
   };
 
   // respect user input if specified words count in args
   if args.words == 12 {
-    words = MnemonicType::Words12;
+    words = Count::Words12;
   } else if args.words == 24 {
-    words = MnemonicType::Words24;
+    words = Count::Words24;
   }
 
   loop {
@@ -140,37 +136,34 @@ fn calc_score(address: &String) -> i32 {
   return score;
 }
 
-fn generate_address(words: MnemonicType) -> (Mnemonic, String) {
-  let mnemonic = Mnemonic::new(words, Language::English);
+fn generate_address(words: Count) -> (Mnemonic, String) {
+  let mnemonic = Mnemonic::generate(words);
+  let seed = mnemonic.to_seed("");
 
-  let seed = Seed::new(&mnemonic, ""); // 128 hex chars = 512 bits
-  let seed_bytes: &[u8] = seed.as_bytes();
+  let hdwallet = ExtendedPrivKey::derive(&seed, "m/44'/60'/0'/0").unwrap();
+  let account0 = hdwallet.child(ChildNumber::from_str("0").unwrap()).unwrap();
 
-  let base_ext = ExtendedPrivKey::derive(seed_bytes, "m/44'/60'/0'/0").unwrap();
-  let child_ext = base_ext.child(ChildNumber::from_str("0").unwrap()).unwrap();
+  let secret_key = SecretKey::parse(&account0.secret());
+  let secret_key = match secret_key {
+    Ok(sk) => sk,
+    Err(_) => panic!("Failed to parse secret key"),
+  };
 
-  let context = secp256k1::Secp256k1::new();
-  let secret_key = SecretKey::from_slice(&child_ext.secret());
-  let public_key = PublicKey::from_secret_key(&context, &secret_key.unwrap());
+  let public_key = PublicKey::from_secret_key(&secret_key);
+  let public_key = &public_key.serialize()[1..65];
 
-  // remove 04 from the beginning of the public key
-  let pk = &public_key.serialize_uncompressed()[1..65];
-
-  let addr = &keccak_hash(&pk);
+  let addr = &keccak_hash(&public_key);
   let addr = &addr[(addr.len() - 40)..];
 
   return (mnemonic, addr.to_string());
 }
 
-fn keccak_hash<T>(data: &T) -> String
-where
-  T: ?Sized + Serialize + AsRef<[u8]>,
-{
-  let mut hasher = Keccak256::new();
-  hasher.update(data);
+fn keccak_hash(input: &[u8]) -> String {
+  let mut hasher = Keccak::v256();
+  let mut output = [0u8; 32];
 
-  let result = hasher.finalize();
-  let hex_r = hex::encode(result);
+  hasher.update(&input);
+  hasher.finalize(&mut output);
 
-  return hex_r;
+  return hex::encode(output);
 }
