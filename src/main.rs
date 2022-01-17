@@ -26,6 +26,9 @@ struct Args {
 
   #[clap(short = 'W', long, default_value = "")]
   webhook: String,
+
+  #[clap(short, long)]
+  benchmark: bool,
 }
 
 fn main() {
@@ -47,8 +50,12 @@ fn main() {
     println!("Mnemonic words count: {}", args.words);
   }
 
-  if args.webhook != "" {
+  if !args.webhook.is_empty() {
     println!("Webhook: {}", args.webhook);
+  }
+
+  if args.benchmark {
+    println!("Benchmark: true");
   }
 
   println!("\n");
@@ -57,7 +64,7 @@ fn main() {
 
   for i in 0..args.threads {
     handles.push(thread::spawn(move || {
-      find_vanity_address(i);
+      find_vanity_address(i, args.threads, args.benchmark);
     }));
   }
 
@@ -66,9 +73,12 @@ fn main() {
   }
 }
 
-fn find_vanity_address(thread: usize) {
+fn find_vanity_address(thread: usize, threads_count: usize, bench: bool) {
   let args = Args::parse();
   let start = Instant::now();
+
+  let mut op_count: u128 = 0;
+  let mut op_start = Instant::now();
 
   // default words to 12 and 24 depends on thread
   // allow to search in different bip39 ranges for each thread
@@ -100,7 +110,7 @@ fn find_vanity_address(thread: usize) {
       println!("\n");
 
       // Send to webhook
-      if args.webhook != "" {
+      if !args.webhook.is_empty() {
         let mut map = HashMap::new();
         map.insert("duration", duration.as_secs().to_string());
         map.insert("mnemonic", mnemonic.phrase().to_string());
@@ -111,10 +121,24 @@ fn find_vanity_address(thread: usize) {
         let _res = client.post(&args.webhook).json(&map).send();
       }
     }
+
+    if thread == 1 && bench {
+      op_count += 1;
+
+      if op_count == 1000 {
+        let duration = op_start.elapsed().as_millis();
+        let per_seconds = (1000 * op_count / duration) * threads_count as u128;
+
+        println!("~{} OP/S", per_seconds);
+
+        op_count = 0;
+        op_start = Instant::now();
+      }
+    }
   }
 }
 
-fn calc_score(address: &String) -> i32 {
+fn calc_score(address: &str) -> i32 {
   let mut score: i32 = 0;
 
   // calculate score of leading zeros into address (+10 per leading 0)
@@ -133,7 +157,7 @@ fn calc_score(address: &String) -> i32 {
     }
   }
 
-  return score;
+  score
 }
 
 fn generate_address(words: Count) -> (Mnemonic, String) {
@@ -152,18 +176,18 @@ fn generate_address(words: Count) -> (Mnemonic, String) {
   let public_key = PublicKey::from_secret_key(&secret_key);
   let public_key = &public_key.serialize()[1..65];
 
-  let addr = &keccak_hash(&public_key);
+  let addr = &keccak_hash(public_key);
   let addr = &addr[(addr.len() - 40)..];
 
-  return (mnemonic, addr.to_string());
+  (mnemonic, addr.to_string())
 }
 
 fn keccak_hash(input: &[u8]) -> String {
   let mut hasher = Keccak::v256();
   let mut output = [0u8; 32];
 
-  hasher.update(&input);
+  hasher.update(input);
   hasher.finalize(&mut output);
 
-  return hex::encode(output);
+  hex::encode(output)
 }

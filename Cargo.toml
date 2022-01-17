@@ -1,14 +1,19 @@
 [package]
+edition = "2021"
 name = "vanitygen-bip39"
 version = "0.1.0"
-edition = "2021"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+panic = "abort"
 
 [dependencies]
-clap = { version = "3.0.0-rc.10", features = ["derive"] }
-hex = "*"
-num_cpus = "1.13.1"
-reqwest = { version = "0.11.8", features = ["blocking", "json"] }
-libsecp256k1 = "0.7.0"
 bip0039 = "0.10.1"
+clap = {version = "3.0.0-rc.10", features = ["derive"]}
+hex = "*"
+libsecp256k1 = "0.7.0"
+num_cpus = "1.13.1"
+reqwest = {version = "0.11.8", features = ["blocking", "json"]}
 tiny-hderive = "0.3.0"
-tiny-keccak = { version = "2.0.2", features = ['keccak'] }
+tiny-keccak = {version = "2.0.2", features = ['keccak']}
