@@ -125,7 +125,7 @@ fn find_vanity_address(thread: usize, threads_count: usize, bench: bool) {
     if thread == 1 && bench {
       op_count += 1;
 
-      if op_count == 1000 {
+      if op_count == 10000 {
         let duration = op_start.elapsed().as_millis();
         let per_seconds = (1000 * op_count / duration) * threads_count as u128;
 
@@ -140,19 +140,21 @@ fn find_vanity_address(thread: usize, threads_count: usize, bench: bool) {
 
 fn calc_score(address: &str) -> i32 {
   let mut score: i32 = 0;
+  let mut has_reached_non_zero = false;
 
-  // calculate score of leading zeros into address (+10 per leading 0)
-  for i in 0..address.len() {
-    if address.chars().nth(i).unwrap() == '0' {
-      score += 100;
-    } else {
-      break;
+  // calculate score of leading zeros into address
+  // +100 per leading 0
+  // +1 per non-zero leading 0
+  for c in address.chars() {
+    if c != '0' {
+      has_reached_non_zero = true;
     }
-  }
 
-  // count occurence of 0 in string address
-  for i in 0..address.len() {
-    if address.chars().nth(i).unwrap() == '0' {
+    if c == '0' && !has_reached_non_zero {
+      score += 100;
+    }
+
+    if c == '0' && has_reached_non_zero {
       score += 1;
     }
   }
