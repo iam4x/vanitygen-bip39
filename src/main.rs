@@ -1,7 +1,8 @@
 extern crate num_cpus;
 
-use clap::Parser;
-use std::collections::HashMap;
+use clap::{Parser};
+use regex::RegexBuilder;
+use std::{collections::HashMap, time::Duration};
 use std::str::FromStr;
 use std::thread;
 use std::time::Instant;
@@ -17,6 +18,9 @@ use tiny_keccak::{Hasher, Keccak};
 struct Args {
   #[clap(short, long, default_value_t = 400)]
   score: i32,
+
+  #[clap(short, long, default_value = "")]
+  regex: String,
 
   #[clap(short, long, default_value_t = 0)]
   words: i32,
@@ -44,7 +48,12 @@ fn main() {
   println!("\n");
 
   println!("Threads count: {}", args.threads);
-  println!("Minimum score shown: {}", args.score);
+  if args.regex.len() == 0 {
+    println!("Minimum score shown: {}", args.score);
+  } else {
+    println!("Matching regex: {}", args.regex);
+  }
+
 
   if args.words > 0 {
     println!("Mnemonic words count: {}", args.words);
@@ -64,7 +73,7 @@ fn main() {
 
   for i in 0..args.threads {
     handles.push(thread::spawn(move || {
-      find_vanity_address(i, args.threads, args.benchmark);
+      find_vanity_address(i);
     }));
   }
 
@@ -73,8 +82,9 @@ fn main() {
   }
 }
 
-fn find_vanity_address(thread: usize, threads_count: usize, bench: bool) {
+fn find_vanity_address(thread: usize) {
   let args = Args::parse();
+  
   let start = Instant::now();
 
   let mut op_count: u128 = 0;
@@ -95,39 +105,36 @@ fn find_vanity_address(thread: usize, threads_count: usize, bench: bool) {
     words = Count::Words24;
   }
 
+  let re = RegexBuilder::new(args.regex.as_ref())
+  .case_insensitive(true)
+  .multi_line(false)
+  .dot_matches_new_line(false)
+  .ignore_whitespace(true)
+  .unicode(true)
+  .build().unwrap();
+
   loop {
     let (mnemonic, address) = generate_address(words);
-    let score = calc_score(&address);
+    if args.regex.len() == 0 {
+      let score = calc_score(&address);
 
-    if score > args.score {
-      // Print the result
-      let duration = start.elapsed();
-      println!("\n");
-      println!("Time: {:?}", duration);
-      println!("BIP39: {}", mnemonic);
-      println!("Address: 0x{}", address);
-      println!("Score: {}", score);
-      println!("\n");
-
-      // Send to webhook
-      if !args.webhook.is_empty() {
-        let mut map = HashMap::new();
-        map.insert("duration", duration.as_secs().to_string());
-        map.insert("mnemonic", mnemonic.phrase().to_string());
-        map.insert("address", address.to_string());
-        map.insert("score", score.to_string());
-
-        let client = reqwest::blocking::Client::new();
-        let _res = client.post(&args.webhook).json(&map).send();
+      if score > args.score {
+        let duration = start.elapsed();
+        found_result(&args.webhook, duration, mnemonic, address, Some(score))
+      }
+    }else {
+      if re.is_match(&address) {
+        let duration = start.elapsed();
+        found_result(&args.webhook, duration, mnemonic, address, None)
       }
     }
 
-    if thread == 1 && bench {
+    if thread == 1 && args.benchmark {
       op_count += 1;
 
       if op_count == 10000 {
         let duration = op_start.elapsed().as_millis();
-        let per_seconds = (1000 * op_count / duration) * threads_count as u128;
+        let per_seconds = (1000 * op_count / duration) * args.threads as u128;
 
         println!("~{} OP/S", per_seconds);
 
@@ -135,6 +142,31 @@ fn find_vanity_address(thread: usize, threads_count: usize, bench: bool) {
         op_start = Instant::now();
       }
     }
+  }
+}
+
+fn found_result(webhook: &String, duration: Duration, mnemonic: Mnemonic, address: String, score: Option<i32>) {
+  // Print the result
+  println!("\n");
+  println!("Time: {:?}", duration);
+  println!("BIP39: {}", mnemonic);
+  println!("Address: 0x{}", address);
+  if let Some(score) = score {
+    println!("Score: {}", score)
+  }
+  println!("\n");
+
+  // Send to webhook
+  if !webhook.is_empty() {
+    let mut map = HashMap::new();
+    map.insert("duration", duration.as_secs().to_string());
+    map.insert("mnemonic", mnemonic.phrase().to_string());
+    map.insert("address", address.to_string());
+    if let Some(score) = score {
+      map.insert("score", score.to_string());
+    }    
+    let client = reqwest::blocking::Client::new();
+    let _res = client.post(webhook).json(&map).send();
   }
 }
 
