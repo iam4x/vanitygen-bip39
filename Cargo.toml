@@ -9,6 +9,7 @@ lto = "fat"
 panic = "abort"
 
 [dependencies]
+eip55 = "0.3"
 bip0039 = "0.10.1"
 clap = {version = "3.0.0-rc.10", features = ["derive"]}
 hex = "*"

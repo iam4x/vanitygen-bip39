@@ -123,6 +123,7 @@ fn find_vanity_address(thread: usize) {
         found_result(&args.webhook, duration, mnemonic, address, Some(score))
       }
     }else {
+      let address = eip55::checksum(address.as_ref());
       if re.is_match(&address) {
         let duration = start.elapsed();
         found_result(&args.webhook, duration, mnemonic, address, None)
