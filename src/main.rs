@@ -120,7 +120,7 @@ fn find_vanity_address(thread: usize) {
 
       if score > args.score {
         let duration = start.elapsed();
-        found_result(&args.webhook, duration, mnemonic, address, Some(score))
+        found_result(&args.webhook, duration, mnemonic, format!("0x{}", address), Some(score))
       }
     }else {
       let address = eip55::checksum(address.as_ref());
@@ -151,7 +151,7 @@ fn found_result(webhook: &String, duration: Duration, mnemonic: Mnemonic, addres
   println!("\n");
   println!("Time: {:?}", duration);
   println!("BIP39: {}", mnemonic);
-  println!("Address: 0x{}", address);
+  println!("Address: {}", address);
   if let Some(score) = score {
     println!("Score: {}", score)
   }
