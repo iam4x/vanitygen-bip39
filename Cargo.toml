@@ -3,15 +3,10 @@ edition = "2021"
 name = "vanitygen-bip39"
 version = "0.1.0"
 
-[profile.release]
-codegen-units = 1
-lto = "fat"
-panic = "abort"
-
 [dependencies]
-bip0039 = "0.10.1"
-clap = {version = "3.0.0-rc.10", features = ["derive"]}
-hex = "*"
+bip0039 = "0.11.0"
+clap = {version = "4.3.24", features = ["derive"]}
+hex = "0.4.3"
 libsecp256k1 = "0.7.0"
 num_cpus = "1.13.1"
 reqwest = {version = "0.11.8", features = ["blocking", "json"]}
