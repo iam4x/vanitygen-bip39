@@ -1,8 +1,11 @@
 extern crate num_cpus;
+extern crate regex;
 
 use clap::Parser;
 use hex::encode;
+use regex::Regex;
 use std::str::FromStr;
+use std::sync::atomic::AtomicI32;
 use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
@@ -20,9 +23,6 @@ use tiny_keccak::{Hasher, Keccak};
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 struct Args {
-    #[clap(short, long, default_value_t = 400)]
-    score: i32,
-
     #[clap(short, long, default_value_t = 0)]
     words: i32,
 
@@ -31,6 +31,9 @@ struct Args {
 
     #[clap(short = 'W', long, default_value = "")]
     webhook: String,
+
+    #[arg(short, long, default_value = "")]
+    pattern: String,
 
     #[clap(short, long)]
     benchmark: bool,
@@ -49,7 +52,6 @@ fn main() {
     println!("\n");
 
     println!("Threads count: {}", args.threads);
-    println!("Minimum score shown: {}", args.score);
 
     if args.words > 0 {
         println!("Mnemonic words count: {}", args.words);
@@ -63,15 +65,22 @@ fn main() {
         println!("Benchmark: true");
     }
 
+    if args.pattern != "" {
+        println!("Pattern: {}", args.pattern);
+    }
+
     println!("\n");
 
     let mut handles = vec![];
+    let last_max_score = Arc::new(AtomicI32::new(0));
     let ops_count = Arc::new(AtomicU64::new(0u64));
 
     for i in 0..args.threads {
+        let last_max_score = last_max_score.clone();
         let ops_count = ops_count.clone();
+        let pattern = args.pattern.clone();
         handles.push(thread::spawn(move || {
-            find_vanity_address(i, args.benchmark, ops_count);
+            find_vanity_address(i, args.benchmark, ops_count, &pattern, last_max_score);
         }));
     }
 
@@ -80,7 +89,13 @@ fn main() {
     }
 }
 
-fn find_vanity_address(thread: usize, bench: bool, ops_count: Arc<AtomicU64>) {
+fn find_vanity_address(
+    thread: usize,
+    benchmark: bool,
+    ops_count: Arc<AtomicU64>,
+    pattern: &str,
+    last_max_score: Arc<AtomicI32>,
+) {
     let args = Args::parse();
     let start = Instant::now();
 
@@ -99,6 +114,7 @@ fn find_vanity_address(thread: usize, bench: bool, ops_count: Arc<AtomicU64>) {
         words = Count::Words24;
     }
 
+    let re = Regex::new(pattern).expect("Failed to compile regex");
     let mut output = [0u8; 32];
 
     loop {
@@ -106,16 +122,19 @@ fn find_vanity_address(thread: usize, bench: bool, ops_count: Arc<AtomicU64>) {
         let public = &public.serialize()[1..65];
 
         keccak_hash_in_place(public, &mut output);
-        let score = calc_score(&output);
 
-        if score > args.score {
+        let score = calc_score(&output);
+        let addr = encode(&output[(output.len() - 20)..]);
+
+        if !benchmark && score >= last_max_score.load(Ordering::SeqCst) && re.is_match(&addr) {
+            last_max_score.store(score, Ordering::SeqCst);
+
             // Print the result
-            let address = &encode(&output[(output.len() - 20)..]);
             let duration = start.elapsed();
             println!("\n");
             println!("Time: {:?}", duration);
             println!("BIP39: {}", mnemonic);
-            println!("Address: 0x{}", address);
+            println!("Address: 0x{}", addr);
             println!("Score: {}", score);
             println!("\n");
 
@@ -124,7 +143,7 @@ fn find_vanity_address(thread: usize, bench: bool, ops_count: Arc<AtomicU64>) {
                 let mut map = HashMap::new();
                 map.insert("duration", duration.as_secs().to_string());
                 map.insert("mnemonic", mnemonic.phrase().to_string());
-                map.insert("address", address.to_string());
+                map.insert("address", addr.to_string());
                 map.insert("score", score.to_string());
 
                 let client = reqwest::blocking::Client::new();
@@ -132,7 +151,7 @@ fn find_vanity_address(thread: usize, bench: bool, ops_count: Arc<AtomicU64>) {
             }
         }
 
-        if bench {
+        if benchmark {
             let ops_count_val = ops_count.fetch_add(1, Ordering::SeqCst);
             if ops_count_val % 10000 == 0 {
                 let ops_per_sec = ops_count_val as f64 / start.elapsed().as_secs_f64();
@@ -142,45 +161,7 @@ fn find_vanity_address(thread: usize, bench: bool, ops_count: Arc<AtomicU64>) {
     }
 }
 
-const NIBBLE_MASK: u8 = 0x0F;
-const SCORE_FOR_LEADING_ZERO: i32 = 100;
-const SCORE_FOR_OTHER_ZEROS: i32 = 1;
-
-fn calc_score(address: &[u8]) -> i32 {
-    let mut score: i32 = 0;
-    let mut has_reached_non_zero = false;
-
-    for &byte in &address[(address.len() - 20)..] {
-        // Check first half-byte (or nibble)
-        let first_half = byte >> 4;
-
-        if first_half != 0 {
-            has_reached_non_zero = true;
-        }
-
-        if first_half == 0 && !has_reached_non_zero {
-            score += SCORE_FOR_LEADING_ZERO;
-        } else if first_half == 0 && has_reached_non_zero {
-            score += SCORE_FOR_OTHER_ZEROS;
-        }
-
-        // Check second half-byte (or nibble)
-        let second_half = byte & NIBBLE_MASK;
-
-        if second_half != 0 {
-            has_reached_non_zero = true;
-        }
-
-        if second_half == 0 && !has_reached_non_zero {
-            score += SCORE_FOR_LEADING_ZERO;
-        } else if second_half == 0 && has_reached_non_zero {
-            score += SCORE_FOR_OTHER_ZEROS;
-        }
-    }
-
-    score
-}
-
+#[inline(always)]
 fn generate_address(words: Count) -> (Mnemonic, PublicKey) {
     let mnemonic = Mnemonic::generate(words);
     let seed = mnemonic.to_seed("");
@@ -199,8 +180,38 @@ fn generate_address(words: Count) -> (Mnemonic, PublicKey) {
     (mnemonic, public_key)
 }
 
+#[inline(always)]
 fn keccak_hash_in_place(input: &[u8], output: &mut [u8; 32]) {
     let mut hasher = Keccak::v256();
     hasher.update(input);
     hasher.finalize(output);
+}
+
+const NIBBLE_MASK: u8 = 0x0F;
+const SCORE_FOR_LEADING_ZERO: i32 = 100;
+
+#[inline(always)]
+fn calc_score(address: &[u8]) -> i32 {
+    let mut score: i32 = 0;
+    let mut has_reached_non_zero = false;
+
+    for &byte in &address[(address.len() - 20)..] {
+        score += score_nibble(byte >> 4, &mut has_reached_non_zero);
+        score += score_nibble(byte & NIBBLE_MASK, &mut has_reached_non_zero);
+    }
+
+    score
+}
+
+#[inline(always)]
+fn score_nibble(nibble: u8, has_reached_non_zero: &mut bool) -> i32 {
+    let mut local_score = 0;
+
+    if nibble == 0 && !*has_reached_non_zero {
+        local_score += SCORE_FOR_LEADING_ZERO;
+    } else if nibble != 0 {
+        *has_reached_non_zero = true;
+    }
+
+    local_score
 }
