@@ -2,10 +2,14 @@ extern crate num_cpus;
 
 use clap::Parser;
 use hex::encode;
-use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use bip0039::{Count, Mnemonic};
 use libsecp256k1::{PublicKey, SecretKey};
@@ -62,10 +66,12 @@ fn main() {
     println!("\n");
 
     let mut handles = vec![];
+    let ops_count = Arc::new(AtomicU64::new(0u64));
 
     for i in 0..args.threads {
+        let ops_count = ops_count.clone();
         handles.push(thread::spawn(move || {
-            find_vanity_address(i, args.threads, args.benchmark);
+            find_vanity_address(i, args.benchmark, ops_count);
         }));
     }
 
@@ -74,12 +80,9 @@ fn main() {
     }
 }
 
-fn find_vanity_address(thread: usize, threads_count: usize, bench: bool) {
+fn find_vanity_address(thread: usize, bench: bool, ops_count: Arc<AtomicU64>) {
     let args = Args::parse();
     let start = Instant::now();
-
-    let mut op_count: u128 = 0;
-    let mut op_start = Instant::now();
 
     // default words to 12 and 24 depends on thread
     // allow to search in different bip39 ranges for each thread
@@ -129,17 +132,11 @@ fn find_vanity_address(thread: usize, threads_count: usize, bench: bool) {
             }
         }
 
-        if thread == 1 && bench {
-            op_count += 1;
-
-            if op_count == 10000 {
-                let duration = op_start.elapsed().as_millis();
-                let per_seconds = (1000 * op_count / duration) * threads_count as u128;
-
-                println!("~{} OP/S", per_seconds);
-
-                op_count = 0;
-                op_start = Instant::now();
+        if bench {
+            let ops_count_val = ops_count.fetch_add(1, Ordering::SeqCst);
+            if ops_count_val % 10000 == 0 {
+                let ops_per_sec = ops_count_val as f64 / start.elapsed().as_secs_f64();
+                println!("op/s: {}", ops_per_sec);
             }
         }
     }
